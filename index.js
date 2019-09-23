@@ -205,53 +205,57 @@ module.exports = function universalImportPlugin({ types: t, template }) {
   return {
     name: 'universal-import',
     visitor: {
-      Import(p) {
-        if (p[visited]) return
-        p[visited] = true
+      Program(programPath) {
+        programPath.traverse({
+          Import: p => {
+            if (p[visited]) return
+            p[visited] = true
 
-        const importArgNode = getImportArgPath(p).node
-        t.existingChunkName = existingMagicCommentChunkName(importArgNode)
-        // no existing chunkname, no problem - we will reuse that for fixing nested chunk names
+            const importArgNode = getImportArgPath(p).node
+            t.existingChunkName = existingMagicCommentChunkName(importArgNode)
+            // no existing chunkname, no problem - we will reuse that for fixing nested chunk names
 
-        const universalImport = getImport(p, IMPORT_UNIVERSAL_DEFAULT)
+            const universalImport = getImport(p, IMPORT_UNIVERSAL_DEFAULT)
 
-        // if being used in an await statement, return load() promise
-        if (
-          p.parentPath.parentPath.isYieldExpression() || // await transformed already
-          t.isAwaitExpression(p.parentPath.parentPath.node) // await not transformed already
-        ) {
-          const func = t.callExpression(universalImport, [
-            loadOption(t, loadTemplate, p, importArgNode).value,
-            t.booleanLiteral(false)
-          ])
+            // if being used in an await statement, return load() promise
+            if (
+              p.parentPath.parentPath.isYieldExpression() || // await transformed already
+              t.isAwaitExpression(p.parentPath.parentPath.node) // await not transformed already
+            ) {
+              const func = t.callExpression(universalImport, [
+                loadOption(t, loadTemplate, p, importArgNode).value,
+                t.booleanLiteral(false)
+              ])
 
-          p.parentPath.replaceWith(func)
-          return
-        }
+              p.parentPath.replaceWith(func)
+              return
+            }
 
-        const opts = (this.opts.babelServer
-          ? [
-            idOption(t, importArgNode),
-            this.opts.includeFileName ? fileOption(t, p) : undefined,
-            pathOption(t, pathTemplate, p, importArgNode),
-            resolveOption(t, resolveTemplate, importArgNode),
-            chunkNameOption(t, chunkNameTemplate, importArgNode)
-          ]
-          : [
-            idOption(t, importArgNode),
-            this.opts.includeFileName ? fileOption(t, p) : undefined,
-            loadOption(t, loadTemplate, p, importArgNode), // only when not on a babel-server
-            pathOption(t, pathTemplate, p, importArgNode),
-            resolveOption(t, resolveTemplate, importArgNode),
-            chunkNameOption(t, chunkNameTemplate, importArgNode)
-          ]
-        ).filter(Boolean)
+            const opts = (this.opts.babelServer
+              ? [
+                idOption(t, importArgNode),
+                this.opts.includeFileName ? fileOption(t, p) : undefined,
+                pathOption(t, pathTemplate, p, importArgNode),
+                resolveOption(t, resolveTemplate, importArgNode),
+                chunkNameOption(t, chunkNameTemplate, importArgNode)
+              ]
+              : [
+                idOption(t, importArgNode),
+                this.opts.includeFileName ? fileOption(t, p) : undefined,
+                loadOption(t, loadTemplate, p, importArgNode), // only when not on a babel-server
+                pathOption(t, pathTemplate, p, importArgNode),
+                resolveOption(t, resolveTemplate, importArgNode),
+                chunkNameOption(t, chunkNameTemplate, importArgNode)
+              ]
+            ).filter(Boolean)
 
-        const options = t.objectExpression(opts)
+            const options = t.objectExpression(opts)
 
-        const func = t.callExpression(universalImport, [options])
-        delete t.existingChunkName
-        p.parentPath.replaceWith(func)
+            const func = t.callExpression(universalImport, [options])
+            delete t.existingChunkName
+            p.parentPath.replaceWith(func)
+          }
+        })
       }
     }
   }
